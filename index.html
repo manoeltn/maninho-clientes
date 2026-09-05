@@ -70,6 +70,7 @@ h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em}
 .tag.mei{background:#E1EAF5;color:#2D4E80}
 .tag.parcelamento{background:#FBEFD9;color:#7A4E0E}
 .tag.contabilidade{background:#E9E7E1;color:#4A463C}
+.tag.diversos{background:#FCE7F0;color:#8C2F5B}
 .tag.saldo{background:var(--red-soft);color:var(--red)}
 .tag.ok{background:var(--green-soft);color:var(--green)}
 .tag.desistiu,.tag.pausado{background:#EEE;color:#666}
@@ -137,13 +138,13 @@ const SUPABASE_URL = "https://zvywfwuayedapocyzmjb.supabase.co";
 const SUPABASE_KEY = "sb_publishable_L78GX_vyX4b-c3oWftTLAQ_6OsAbotr";
 /* ================================= */
 
-const TIPOS = {cnh:"CNH", mei:"MEI", contabilidade:"Contabilidade", irpf:"Imposto de Renda", parcelamento:"Parcelamento"};
+const TIPOS = {cnh:"CNH", mei:"MEI", contabilidade:"Contabilidade", irpf:"Imposto de Renda", parcelamento:"Parcelamento", diversos:"Diversos"};
 const STATUS = {andamento:"Em andamento", concluido:"Concluído", pausado:"Pausado", desistiu:"Desistiu"};
 const ETAPAS_PADRAO = {
   cnh: ["Requerimento", "Curso teórico", "Coleta da foto e digitais", "Exames médico e psicológico", "Exame teórico", "Curso prático", "Exame prático", "Emissão da CNH"],
   mei: ["DASN entregue","Parcelamento","Baixa do MEI"],
   irpf: ["Senha Gov","Documentação","Transmitida"],
-  contabilidade: [], parcelamento: []
+  contabilidade: [], parcelamento: [], diversos: []
 };
 
 const CONFIGURADO = !SUPABASE_URL.startsWith("__");
@@ -311,6 +312,10 @@ function servicoCard(s){
      ${d.acesso?`<div class="kv"><span class="k">Acesso</span><span class="v mono">${esc(d.acesso)}</span><button class="copy" onclick="copiar('${esc(d.acesso)}',this)">Copiar</button></div>`:""}${d.referencia?`<div class="kv"><span class="k">Referência</span><span class="v mono">${esc(d.referencia)}</span></div>`:""}${d.protocolo?`<div class="kv"><span class="k">Protocolo</span><span class="v mono">${esc(d.protocolo)}</span></div>`:""}
      <button class="btn sec" style="margin-top:10px" onclick="maisUma('${s.id}')">+1 guia emitida</button>`);
   if (s.tipo==="mei"&&(d.protocolo_vre||d.nire)) extra.push(`${d.protocolo_vre?`<div class="kv"><span class="k">Protocolo VRE</span><span class="v mono">${esc(d.protocolo_vre)}</span></div>`:""}${d.nire?`<div class="kv"><span class="k">NIRE</span><span class="v mono">${esc(d.nire)}</span></div>`:""}`);
+  if (d.renach) extra.push(`<div class="kv"><span class="k">RENACH</span><span class="v mono">${esc(d.renach)}</span><button class="copy" onclick="copiar('${esc(d.renach)}',this)">Copiar</button></div>`);
+  if (d.registro) extra.push(`<div class="kv"><span class="k">Registro CNH</span><span class="v mono">${esc(d.registro)}</span><button class="copy" onclick="copiar('${esc(d.registro)}',this)">Copiar</button></div>`);
+  if (s.tipo!=="parcelamento"&&d.referencia) extra.push(`<div class="kv"><span class="k">Referência</span><span class="v mono">${esc(d.referencia)}</span></div>`);
+  if (s.tipo!=="parcelamento"&&d.protocolo) extra.push(`<div class="kv"><span class="k">Protocolo</span><span class="v mono">${esc(d.protocolo)}</span></div>`);
   if (s.tipo==="irpf"&&d.situacao) extra.push(`<div class="kv"><span class="k">Situação</span><span class="v">${esc(d.situacao)}</span></div>`);
   if (d.recibos) extra.push(`<div class="kv"><span class="k">Recibos</span><span class="v mono">${esc(d.recibos)}</span></div>`);
   if (d.anotacoes) extra.push(`<div class="kv"><span class="k">Anotações</span><span class="v">${esc(d.anotacoes)}</span></div>`);
@@ -391,6 +396,8 @@ function extraCampos(tipo,d){
   const f=(k,l,type="text")=>`<label>${l}</label><input id="d_${k}" type="${type}" value="${esc(d[k]??"")}">`;
   if(tipo==="parcelamento") return `<div class="grid2">${f("parcelas_total","Total de parcelas","number")}${f("parcelas_emitidas","Guias já emitidas","number")}</div>${f("valor_por_emissao","Cobrado por emissão (R$)","number")}${f("acesso","Acesso / senha do sistema")}${f("referencia","Referência (CNPJ, inscrição, placa...)")}${f("protocolo","Protocolo")}`;
   if(tipo==="mei") return `${f("protocolo_vre","Protocolo VRE")}${f("nire","NIRE")}`;
+  if(tipo==="cnh") return `<div class="grid2">${f("renach","RENACH")}${f("registro","Registro da CNH")}</div>${f("anotacoes","Anotações")}`;
+  if(tipo==="diversos") return `${f("referencia","Referência (RENAVAM, placa, nº...)")}${f("protocolo","Protocolo")}${f("anotacoes","Anotações")}`;
   if(tipo==="irpf") return `${f("situacao","Situação (Transmitida, Falta documentação...)")}${f("recibos","Recibos de anos anteriores")}${f("anotacoes","Anotações")}`;
   return f("anotacoes","Anotações");
 }
