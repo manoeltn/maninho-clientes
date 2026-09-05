@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Maninho · Clientes</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Maninho">
+<meta name="theme-color" content="#0F5A40">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230F5A40'/%3E%3Ctext x='90' y='118' font-family='-apple-system,Helvetica' font-size='96' font-weight='800' fill='%23F6F7F3' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --paper:#F6F7F3; --card:#FFFFFF; --ink:#12201A; --ink-2:#4B5A53; --ink-3:#8A968F;
+  --line:#E1E5E0; --green:#0F5A40; --green-soft:#DCEFE5; --amber:#B7791F; --amber-soft:#FBEFD9;
+  --red:#A9302A; --red-soft:#F9E3E1; --blue-soft:#E1EAF5;
+  --r:14px; --sat:env(safe-area-inset-top); --sab:env(safe-area-inset-bottom);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+input,select,textarea{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:11px 12px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+textarea{min-height:76px;resize:vertical}
+label{display:block;font-size:13px;color:var(--ink-2);margin:12px 0 5px}
+h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em}
+.hidden{display:none!important}
+
+/* topo */
+.top{position:sticky;top:0;z-index:5;background:var(--green);color:#F6F7F3;padding:calc(var(--sat) + 12px) 16px 12px;display:flex;align-items:center;gap:10px}
+.top .brand{font-weight:800;font-size:19px;letter-spacing:-.02em;flex:1}
+.top .brand small{font-weight:500;opacity:.75;margin-left:8px;font-size:13px}
+.top button{color:#F6F7F3;font-size:15px;padding:6px 8px;border-radius:8px}
+.top button.back{margin-left:-8px;font-size:22px;line-height:1}
+.main{padding:14px 16px calc(var(--sab) + 84px);max-width:640px;margin:0 auto}
+
+/* login */
+.login{max-width:380px;margin:12vh auto 0;padding:0 24px}
+.login .mark{width:64px;height:64px;border-radius:18px;background:var(--green);color:#F6F7F3;font-weight:800;font-size:38px;display:flex;align-items:center;justify-content:center;margin-bottom:18px}
+.login h1{font-size:26px}
+.login p{color:var(--ink-2);margin:6px 0 18px}
+
+/* busca e filtros */
+.search{display:flex;gap:8px;margin-bottom:10px}
+.search input{border-radius:12px;padding:12px 14px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin:0 -16px;padding-left:16px;padding-right:16px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:7px 13px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:14px;color:var(--ink-2)}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* resumo */
+.resumo{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0 16px}
+.resumo div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.resumo b{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em}
+.resumo span{font-size:12px;color:var(--ink-2)}
+.resumo .money{color:var(--red)}
+
+/* lista */
+.row{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;width:100%;text-align:left;display:block}
+.row:active{background:#F1F3EF}
+.row .l1{display:flex;align-items:baseline;gap:8px}
+.row .nome{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .l2{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.tag{font-size:12px;padding:3px 8px;border-radius:6px;background:var(--blue-soft);color:var(--ink-2);font-weight:600}
+.tag.cnh{background:var(--green-soft);color:var(--green)}
+.tag.irpf{background:#EDE4F7;color:#5B3B8C}
+.tag.mei{background:#E1EAF5;color:#2D4E80}
+.tag.parcelamento{background:#FBEFD9;color:#7A4E0E}
+.tag.contabilidade{background:#E9E7E1;color:#4A463C}
+.tag.saldo{background:var(--red-soft);color:var(--red)}
+.tag.ok{background:var(--green-soft);color:var(--green)}
+.tag.desistiu,.tag.pausado{background:#EEE;color:#666}
+.prox{font-size:13px;color:var(--amber);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.steps{display:flex;gap:3px;margin-top:8px}
+.steps i{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.steps i.ok{background:var(--green)}
+.empty{color:var(--ink-3);text-align:center;padding:40px 16px}
+
+/* cliente */
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:10px}
+.card h3{font-size:15px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.card h3 .sp{flex:1}
+.kv{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid #F0F2EE}
+.kv:first-of-type{border-top:0}
+.kv .k{font-size:12px;color:var(--ink-3);width:92px;flex:none}
+.kv .v{flex:1;min-width:0;word-break:break-word}
+.kv .v.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px}
+.copy{font-size:12px;color:var(--green);font-weight:600;padding:4px 8px;border-radius:6px;background:var(--green-soft)}
+.copy.done{background:var(--ink);color:#fff}
+.etapa{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #F0F2EE;width:100%;text-align:left}
+.etapa .box{width:22px;height:22px;border-radius:7px;border:2px solid var(--line);flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px}
+.etapa.ok .box{background:var(--green);border-color:var(--green)}
+.etapa.ok .nm{color:var(--ink-3);text-decoration:line-through}
+.money-line{display:flex;gap:8px;margin-top:6px}
+.money-line div{flex:1;background:var(--paper);border-radius:10px;padding:8px 10px}
+.money-line b{display:block;font-size:17px}
+.money-line span{font-size:12px;color:var(--ink-2)}
+.money-line .neg b{color:var(--red)}
+.note{background:var(--amber-soft);color:#6B4A12;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:14px}
+.link{color:var(--green);font-weight:600;font-size:14px;padding:6px 0}
+
+/* botões */
+.btn{display:block;width:100%;padding:13px;border-radius:12px;background:var(--green);color:#fff;font-weight:600;text-align:center}
+.btn.sec{background:#fff;border:1px solid var(--line);color:var(--ink)}
+.btn.danger{background:#fff;border:1px solid var(--line);color:var(--red)}
+.btn:disabled{opacity:.5}
+.btn-row{display:flex;gap:8px;margin-top:14px}
+.btn-row .btn{flex:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.err{background:var(--red-soft);color:var(--red);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:14px}
+
+/* seção de pendências */
+.sec-h{font-size:13px;color:var(--ink-2);margin:18px 0 8px;font-weight:600}
+
+/* barra inferior */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(246,247,243,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;padding:6px 8px calc(var(--sab) + 6px)}
+.tabs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--ink-3);padding:6px 0}
+.tabs button.on{color:var(--green)}
+.tabs button svg{width:24px;height:24px}
+.tabs .add{color:#fff}
+.tabs .add span{background:var(--green);width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-top:-16px;box-shadow:0 4px 12px rgba(15,90,64,.3)}
+.toast{position:fixed;left:50%;bottom:calc(var(--sab) + 90px);transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;z-index:9;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+/* ========= CONFIGURAÇÃO ========= */
+const SUPABASE_URL = "https://zvywfwuayedapocyzmjb.supabase.co";
+const SUPABASE_KEY = "sb_publishable_L78GX_vyX4b-c3oWftTLAQ_6OsAbotr";
+/* ================================= */
+
+const TIPOS = {cnh:"CNH", mei:"MEI", contabilidade:"Contabilidade", irpf:"Imposto de Renda", parcelamento:"Parcelamento"};
+const STATUS = {andamento:"Em andamento", concluido:"Concluído", pausado:"Pausado", desistiu:"Desistiu"};
+const ETAPAS_PADRAO = {
+  cnh: ["Requerimento", "Curso teórico", "Coleta da foto e digitais", "Exames médico e psicológico", "Exame teórico", "Curso prático", "Exame prático", "Emissão da CNH"],
+  mei: ["DASN entregue","Parcelamento","Baixa do MEI"],
+  irpf: ["Senha Gov","Documentação","Transmitida"],
+  contabilidade: [], parcelamento: []
+};
+
+const CONFIGURADO = !SUPABASE_URL.startsWith("__");
+const sb = CONFIGURADO ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const $ = s => document.querySelector(s);
+const app = $("#app");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const brl = n => (Number(n)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const fmtDate = d => d ? d.split("-").reverse().join("/") : "";
+let S = { user:null, clientes:[], servicos:[], view:"lista", filtro:"todos", busca:"", clienteId:null, tab:"lista" };
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1800); }
+async function copiar(txt, btn){ try{ await navigator.clipboard.writeText(txt); btn.classList.add("done"); btn.textContent="Copiado"; setTimeout(()=>{btn.classList.remove("done");btn.textContent="Copiar";},1500);}catch{ toast("Não foi possível copiar"); } }
+
+/* ---------- dados ---------- */
+async function carregar(){
+  const [c, s] = await Promise.all([
+    sb.from("clientes").select("*").order("nome"),
+    sb.from("servicos").select("*").order("atualizado_em",{ascending:false})
+  ]);
+  if (c.error || s.error) { render(erro(c.error||s.error)); return; }
+  S.clientes = c.data; S.servicos = s.data;
+}
+const servDo = id => S.servicos.filter(s=>s.cliente_id===id);
+const saldo = s => (Number(s.valor)||0) - (Number(s.recebido)||0);
+const cliente = id => S.clientes.find(c=>c.id===id);
+
+/* ---------- navegação ---------- */
+function go(view, extra={}){ Object.assign(S,{view},extra); window.scrollTo(0,0); render(); }
+function render(html){
+  if (html){ app.innerHTML = html; return; }
+  if (!S.user) { app.innerHTML = viewLogin(); return; }
+  const v = {lista:viewLista, pendencias:viewPendencias, cliente:viewCliente, clienteForm:viewClienteForm, servicoForm:viewServicoForm}[S.view];
+  app.innerHTML = v() + (["lista","pendencias","cliente"].includes(S.view) ? tabs() : "");
+}
+const erro = e => `<div class="main"><div class="err">${esc(e.message||e)}</div><button class="btn sec" style="margin-top:12px" onclick="init()">Tentar de novo</button></div>`;
+
+function topo(titulo, back, right=""){
+  return `<div class="top">${back?`<button class="back" onclick="${back}">‹</button>`:""}<div class="brand">${titulo}${back?"":"<small>Serviços Digitais</small>"}</div>${right}</div>`;
+}
+function tabs(){
+  const ic = {
+    lista:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/></svg>',
+    pend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+  };
+  return `<div class="tabs">
+    <button class="${S.tab==="lista"?"on":""}" onclick="go('lista',{tab:'lista',clienteId:null})">${ic.lista}Clientes</button>
+    <button class="add" onclick="go('clienteForm',{editId:null})"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></span></button>
+    <button class="${S.tab==="pendencias"?"on":""}" onclick="go('pendencias',{tab:'pendencias'})">${ic.pend}Pendências</button>
+  </div>`;
+}
+
+/* ---------- login ---------- */
+function viewLogin(){
+  return `<div class="login">
+    <div class="mark">M</div>
+    <h1>Maninho Serviços Digitais</h1>
+    <p>Entre para ver os clientes.</p>
+    <label>E-mail</label><input id="em" type="email" autocomplete="username" inputmode="email">
+    <label>Senha</label><input id="pw" type="password" autocomplete="current-password">
+    <div id="lerr"></div>
+    <button class="btn" style="margin-top:16px" onclick="login()">Entrar</button>
+    <button class="link" style="margin-top:10px;background:none" onclick="criarConta()">Primeiro acesso? Criar conta</button>
+  </div>`;
+}
+async function login(){
+  const {error} = await sb.auth.signInWithPassword({email:$("#em").value.trim(), password:$("#pw").value});
+  if (error) { $("#lerr").innerHTML = `<div class="err">${esc(traduz(error.message))}</div>`; return; }
+  await init();
+}
+async function criarConta(){
+  const email=$("#em").value.trim(), password=$("#pw").value;
+  if(!email||password.length<6){ $("#lerr").innerHTML=`<div class="err">Informe o e-mail e uma senha com pelo menos 6 caracteres.</div>`; return; }
+  const {error} = await sb.auth.signUp({email,password});
+  if (error) { $("#lerr").innerHTML = `<div class="err">${esc(traduz(error.message))}</div>`; return; }
+  $("#lerr").innerHTML = `<div class="note">Conta criada. Se pedir confirmação, abra o link enviado ao seu e-mail e depois toque em Entrar.</div>`;
+}
+const traduz = m => ({"Invalid login credentials":"E-mail ou senha incorretos.","Email not confirmed":"Confirme o e-mail antes de entrar.","User already registered":"Este e-mail já tem conta. Toque em Entrar."}[m]||m);
+async function sair(){ await sb.auth.signOut(); S.user=null; render(); }
+
+/* ---------- lista ---------- */
+function viewLista(){
+  const q = S.busca.toLowerCase().replace(/\D/g,"") ;
+  const qn = S.busca.toLowerCase();
+  let lista = S.clientes.filter(c => {
+    const okBusca = !S.busca || c.nome.toLowerCase().includes(qn) || (q && (c.cpf||"").replace(/\D/g,"").includes(q)) || (q && (c.cnpj||"").replace(/\D/g,"").includes(q));
+    const okTipo = S.filtro==="todos" || servDo(c.id).some(s=>s.tipo===S.filtro && s.status!=="concluido" && s.status!=="desistiu");
+    return okBusca && okTipo;
+  });
+  const ativos = S.servicos.filter(s=>s.status==="andamento");
+  const aReceber = ativos.reduce((a,s)=>a+Math.max(saldo(s),0),0);
+  const comPasso = ativos.filter(s=>s.proximo_passo).length;
+  return topo("Maninho", null, `<button onclick="sair()">Sair</button>`) + `<div class="main">
+    <div class="search"><input placeholder="Buscar por nome, CPF ou CNPJ" value="${esc(S.busca)}" oninput="S.busca=this.value;renderLista()"></div>
+    <div class="chips">${["todos",...Object.keys(TIPOS)].map(t=>`<button class="chip ${S.filtro===t?"on":""}" onclick="S.filtro='${t}';render()">${t==="todos"?"Todos":TIPOS[t]}</button>`).join("")}</div>
+    <div class="resumo">
+      <div><b>${ativos.length}</b><span>em andamento</span></div>
+      <div><b class="money">${brl(aReceber)}</b><span>a receber</span></div>
+      <div><b>${comPasso}</b><span>com próximo passo</span></div>
+    </div>
+    <div id="lista">${listaHTML(lista)}</div>
+  </div>`;
+}
+function renderLista(){ const q=S.busca.toLowerCase(), qd=q.replace(/\D/g,"");
+  const lista=S.clientes.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(qd&&(c.cpf||"").replace(/\D/g,"").includes(qd))||(qd&&(c.cnpj||"").replace(/\D/g,"").includes(qd)))&&(S.filtro==="todos"||servDo(c.id).some(s=>s.tipo===S.filtro&&s.status!=="concluido"&&s.status!=="desistiu")));
+  $("#lista").innerHTML=listaHTML(lista); }
+function listaHTML(lista){
+  if(!lista.length) return `<div class="empty">Nenhum cliente aqui ainda.<br>Toque em + para cadastrar.</div>`;
+  return lista.map(c=>{
+    const ss = servDo(c.id).filter(s=>S.filtro==="todos"||s.tipo===S.filtro);
+    const ativos = ss.filter(s=>s.status==="andamento");
+    const sd = ativos.reduce((a,s)=>a+Math.max(saldo(s),0),0);
+    const prox = ativos.find(s=>s.proximo_passo)?.proximo_passo;
+    const steps = ativos.find(s=>s.etapas?.length)?.etapas;
+    return `<button class="row" onclick="go('cliente',{clienteId:'${c.id}'})">
+      <div class="l1"><span class="nome">${esc(c.nome)}</span>${sd>0?`<span class="tag saldo">${brl(sd)}</span>`:""}</div>
+      <div class="l2">${ss.map(s=>`<span class="tag ${s.tipo} ${s.status!=="andamento"?s.status:""}">${esc(s.titulo||TIPOS[s.tipo])}${s.status==="concluido"?" ✓":""}</span>`).join("")||`<span class="tag">sem serviço</span>`}</div>
+      ${prox?`<div class="prox">→ ${esc(prox)}</div>`:""}
+      ${steps?`<div class="steps">${steps.map(e=>`<i class="${e.ok?"ok":""}"></i>`).join("")}</div>`:""}
+    </button>`;
+  }).join("");
+}
+
+/* ---------- pendências ---------- */
+function viewPendencias(){
+  const ativos = S.servicos.filter(s=>s.status==="andamento");
+  const devendo = ativos.filter(s=>saldo(s)>0).sort((a,b)=>saldo(b)-saldo(a));
+  const passos = ativos.filter(s=>s.proximo_passo).sort((a,b)=>a.atualizado_em.localeCompare(b.atualizado_em));
+  const parc = ativos.filter(s=>s.tipo==="parcelamento"&&s.dados?.parcelas_total);
+  const item = (s,extra) => { const c=cliente(s.cliente_id); return `<button class="row" onclick="go('cliente',{clienteId:'${c.id}'})">
+      <div class="l1"><span class="nome">${esc(c.nome)}</span>${extra}</div>
+      <div class="l2"><span class="tag ${s.tipo}">${esc(s.titulo||TIPOS[s.tipo])}</span><span style="font-size:12px;color:var(--ink-3)">atualizado ${fmtDate(s.atualizado_em.slice(0,10))}</span></div>
+      ${s.proximo_passo?`<div class="prox">→ ${esc(s.proximo_passo)}</div>`:""}</button>`; };
+  return topo("Pendências", null, `<button onclick="sair()">Sair</button>`) + `<div class="main">
+    <div class="sec-h">Saldo em aberto · ${brl(devendo.reduce((a,s)=>a+saldo(s),0))}</div>
+    ${devendo.map(s=>item(s,`<span class="tag saldo">${brl(saldo(s))}</span>`)).join("")||`<div class="empty">Ninguém devendo.</div>`}
+    <div class="sec-h">Próximo passo (mais antigos primeiro)</div>
+    ${passos.map(s=>item(s,"")).join("")||`<div class="empty">Nenhum próximo passo anotado.</div>`}
+    <div class="sec-h">Parcelamentos · guias emitidas</div>
+    ${parc.map(s=>item(s,`<span class="tag">${s.dados.parcelas_emitidas||0}/${s.dados.parcelas_total}</span>`)).join("")||`<div class="empty">Nenhum parcelamento.</div>`}
+  </div>`;
+}
+
+/* ---------- cliente ---------- */
+function viewCliente(){
+  const c = cliente(S.clienteId); if(!c) return viewLista();
+  const kv = (k,v,mono,copy) => v ? `<div class="kv"><span class="k">${k}</span><span class="v ${mono?"mono":""}">${esc(v)}</span>${copy?`<button class="copy" onclick="copiar('${esc(v).replace(/'/g,"\\'")}',this)">Copiar</button>`:""}</div>` : "";
+  const end = [c.endereco, c.bairro, c.cep, [c.cidade,c.estado].filter(Boolean).join(" - ")].filter(Boolean).join(", ");
+  const ss = servDo(c.id).sort((a,b)=>(a.status==="andamento"?0:1)-(b.status==="andamento"?0:1));
+  return topo(esc(c.nome), "go('lista')", `<button onclick="go('clienteForm',{editId:'${c.id}'})">Editar</button>`) + `<div class="main">
+    <div class="card">
+      ${kv("CPF",c.cpf,1,1)}${kv("CNPJ",c.cnpj,1,1)}${kv("Telefone",c.telefone,1,1)}${kv("Nascimento",fmtDate(c.data_nascimento),1)}
+      ${kv("Senha Gov",c.senha_gov,1,1)}${kv("Cód. acesso",c.codigo_acesso,1,1)}${kv("Navegador",c.navegador)}${kv("Endereço",end)}${kv("Obs.",c.obs)}
+      ${c.telefone?`<a class="link" style="display:block;margin-top:8px" href="https://wa.me/55${c.telefone.replace(/\D/g,"")}">Abrir no WhatsApp</a>`:""}
+    </div>
+    ${ss.map(servicoCard).join("")}
+    <button class="btn sec" onclick="go('servicoForm',{editId:null})">+ Adicionar serviço</button>
+  </div>`;
+}
+function servicoCard(s){
+  const sd = saldo(s), d = s.dados||{};
+  const etapas = (s.etapas||[]).map((e,i)=>`<button class="etapa ${e.ok?"ok":""}" onclick="toggleEtapa('${s.id}',${i})"><span class="box">${e.ok?"✓":""}</span><span class="nm">${esc(e.nome)}</span></button>`).join("");
+  const extra = [];
+  if (s.tipo==="parcelamento") extra.push(`<div class="money-line"><div><b>${d.parcelas_emitidas||0} de ${d.parcelas_total||"?"}</b><span>guias emitidas</span></div><div><b>${brl(d.valor_por_emissao)}</b><span>por emissão</span></div></div>
+     ${d.acesso?`<div class="kv"><span class="k">Acesso</span><span class="v mono">${esc(d.acesso)}</span><button class="copy" onclick="copiar('${esc(d.acesso)}',this)">Copiar</button></div>`:""}${d.referencia?`<div class="kv"><span class="k">Referência</span><span class="v mono">${esc(d.referencia)}</span></div>`:""}${d.protocolo?`<div class="kv"><span class="k">Protocolo</span><span class="v mono">${esc(d.protocolo)}</span></div>`:""}
+     <button class="btn sec" style="margin-top:10px" onclick="maisUma('${s.id}')">+1 guia emitida</button>`);
+  if (s.tipo==="mei"&&(d.protocolo_vre||d.nire)) extra.push(`${d.protocolo_vre?`<div class="kv"><span class="k">Protocolo VRE</span><span class="v mono">${esc(d.protocolo_vre)}</span></div>`:""}${d.nire?`<div class="kv"><span class="k">NIRE</span><span class="v mono">${esc(d.nire)}</span></div>`:""}`);
+  if (s.tipo==="irpf"&&d.situacao) extra.push(`<div class="kv"><span class="k">Situação</span><span class="v">${esc(d.situacao)}</span></div>`);
+  if (d.recibos) extra.push(`<div class="kv"><span class="k">Recibos</span><span class="v mono">${esc(d.recibos)}</span></div>`);
+  if (d.anotacoes) extra.push(`<div class="kv"><span class="k">Anotações</span><span class="v">${esc(d.anotacoes)}</span></div>`);
+  return `<div class="card">
+    <h3><span class="tag ${s.tipo}">${TIPOS[s.tipo]}</span>${esc(s.titulo&&s.titulo!==TIPOS[s.tipo]?s.titulo:"")}<span class="sp"></span><span class="tag ${s.status==="andamento"?"":s.status==="concluido"?"ok":s.status}">${STATUS[s.status]}</span></h3>
+    ${(Number(s.valor)||Number(s.recebido))?`<div class="money-line"><div><b>${brl(s.valor)}</b><span>valor</span></div><div><b>${brl(s.recebido)}</b><span>recebido</span></div><div class="${sd>0?"neg":""}"><b>${brl(sd)}</b><span>saldo</span></div></div>`:""}
+    ${s.proximo_passo?`<div class="note">→ ${esc(s.proximo_passo)}</div>`:""}
+    ${etapas?`<div style="margin-top:8px">${etapas}</div>`:""}
+    ${extra.join("")}
+    ${s.data_inicio?`<div style="font-size:12px;color:var(--ink-3);margin-top:8px">Início ${fmtDate(s.data_inicio)}</div>`:""}
+    <button class="link" onclick="go('servicoForm',{editId:'${s.id}'})">Editar serviço</button>
+  </div>`;
+}
+async function toggleEtapa(id,i){
+  const s=S.servicos.find(x=>x.id===id); s.etapas[i].ok=!s.etapas[i].ok;
+  const {error}=await sb.from("servicos").update({etapas:s.etapas}).eq("id",id);
+  if(error){ s.etapas[i].ok=!s.etapas[i].ok; toast("Não salvou: "+error.message); } render();
+}
+async function maisUma(id){
+  const s=S.servicos.find(x=>x.id===id); s.dados.parcelas_emitidas=(s.dados.parcelas_emitidas||0)+1;
+  const {error}=await sb.from("servicos").update({dados:s.dados}).eq("id",id);
+  if(error) toast("Não salvou: "+error.message); else toast("Guia registrada"); render();
+}
+
+/* ---------- formulário cliente ---------- */
+function viewClienteForm(){
+  const c = S.editId ? cliente(S.editId) : {};
+  const f=(k,l,ph="",type="text",extra="")=>`<label>${l}</label><input id="f_${k}" type="${type}" value="${esc(c[k]||"")}" placeholder="${ph}" ${extra}>`;
+  return topo(S.editId?"Editar cliente":"Novo cliente","go(S.editId?'cliente':'lista')") + `<div class="main">
+    ${f("nome","Nome completo")}
+    <div class="grid2">${f("cpf","CPF","000.000.000-00","text","inputmode=numeric")}${f("cnpj","CNPJ","","text","inputmode=numeric")}</div>
+    <div class="grid2">${f("telefone","Telefone","(11) 9...","tel")}${f("data_nascimento","Nascimento","","date")}</div>
+    ${f("senha_gov","Senha Gov")}
+    <div class="grid2">${f("codigo_acesso","Código de acesso")}${f("navegador","Navegador","Comet, Edge, Chrome...")}</div>
+    ${f("endereco","Endereço")}
+    <div class="grid2">${f("bairro","Bairro")}${f("cep","CEP","","text","inputmode=numeric")}</div>
+    <div class="grid2">${f("cidade","Cidade")}${f("estado","UF","","text","maxlength=2")}</div>
+    <label>Observações</label><textarea id="f_obs">${esc(c.obs||"")}</textarea>
+    <div id="ferr"></div>
+    <div class="btn-row"><button class="btn" onclick="salvarCliente()">Salvar</button></div>
+    ${S.editId?`<button class="btn danger" style="margin-top:10px" onclick="excluirCliente('${S.editId}')">Excluir cliente</button>`:""}
+  </div>`;
+}
+async function salvarCliente(){
+  const g=k=>$("#f_"+k).value.trim()||null;
+  const row={nome:g("nome"),cpf:g("cpf"),cnpj:g("cnpj"),telefone:g("telefone"),data_nascimento:g("data_nascimento"),senha_gov:g("senha_gov"),codigo_acesso:g("codigo_acesso"),navegador:g("navegador"),endereco:g("endereco"),bairro:g("bairro"),cep:g("cep"),cidade:g("cidade"),estado:g("estado")?.toUpperCase(),obs:g("obs")};
+  if(!row.nome){ $("#ferr").innerHTML=`<div class="err">O nome é obrigatório.</div>`; return; }
+  const r = S.editId ? await sb.from("clientes").update(row).eq("id",S.editId).select().single() : await sb.from("clientes").insert(row).select().single();
+  if(r.error){ $("#ferr").innerHTML=`<div class="err">${esc(r.error.message)}</div>`; return; }
+  await carregar(); toast("Salvo"); go("cliente",{clienteId:r.data.id,tab:"lista"});
+}
+async function excluirCliente(id){
+  if(!confirm("Excluir este cliente e todos os serviços dele?")) return;
+  const {error}=await sb.from("clientes").delete().eq("id",id);
+  if(error){ toast(error.message); return; } await carregar(); go("lista");
+}
+
+/* ---------- formulário serviço ---------- */
+function viewServicoForm(){
+  const s = S.editId ? S.servicos.find(x=>x.id===S.editId) : {tipo:"cnh",status:"andamento",etapas:null,dados:{}};
+  const d=s.dados||{};
+  return topo(S.editId?"Editar serviço":"Novo serviço","go('cliente')") + `<div class="main">
+    <label>Tipo</label><select id="s_tipo" onchange="tipoMudou()" ${S.editId?"disabled":""}>${Object.entries(TIPOS).map(([k,v])=>`<option value="${k}" ${s.tipo===k?"selected":""}>${v}</option>`).join("")}</select>
+    <label>Título (opcional)</label><input id="s_titulo" value="${esc(s.titulo||"")}" placeholder="ex.: 1ª CNH, Regularize, IRPF 2026">
+    <label>Situação</label><select id="s_status">${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${s.status===k?"selected":""}>${v}</option>`).join("")}</select>
+    <div class="grid2"><label>Valor (R$)</label><label>Recebido (R$)</label></div>
+    <div class="grid2"><input id="s_valor" type="number" inputmode="decimal" step="0.01" value="${s.valor||""}"><input id="s_recebido" type="number" inputmode="decimal" step="0.01" value="${s.recebido||""}"></div>
+    <label>Próximo passo</label><textarea id="s_prox" placeholder="O que falta fazer / combinado com o cliente">${esc(s.proximo_passo||"")}</textarea>
+    <label>Data de início</label><input id="s_inicio" type="date" value="${s.data_inicio||""}">
+    <label>Etapas (uma por linha; a ordem é mantida)</label><textarea id="s_etapas" style="min-height:130px">${esc((s.etapas??ETAPAS_PADRAO[s.tipo].map(n=>({nome:n}))).map(e=>e.nome).join("\n"))}</textarea>
+    <div id="s_extra">${extraCampos(s.tipo,d)}</div>
+    <div id="serr"></div>
+    <div class="btn-row"><button class="btn" onclick="salvarServico()">Salvar</button></div>
+    ${S.editId?`<button class="btn danger" style="margin-top:10px" onclick="excluirServico('${S.editId}')">Excluir serviço</button>`:""}
+  </div>`;
+}
+function extraCampos(tipo,d){
+  const f=(k,l,type="text")=>`<label>${l}</label><input id="d_${k}" type="${type}" value="${esc(d[k]??"")}">`;
+  if(tipo==="parcelamento") return `<div class="grid2">${f("parcelas_total","Total de parcelas","number")}${f("parcelas_emitidas","Guias já emitidas","number")}</div>${f("valor_por_emissao","Cobrado por emissão (R$)","number")}${f("acesso","Acesso / senha do sistema")}${f("referencia","Referência (CNPJ, inscrição, placa...)")}${f("protocolo","Protocolo")}`;
+  if(tipo==="mei") return `${f("protocolo_vre","Protocolo VRE")}${f("nire","NIRE")}`;
+  if(tipo==="irpf") return `${f("situacao","Situação (Transmitida, Falta documentação...)")}${f("recibos","Recibos de anos anteriores")}${f("anotacoes","Anotações")}`;
+  return f("anotacoes","Anotações");
+}
+function tipoMudou(){ const t=$("#s_tipo").value; $("#s_etapas").value=ETAPAS_PADRAO[t].join("\n"); $("#s_extra").innerHTML=extraCampos(t,{}); }
+async function salvarServico(){
+  const old = S.editId ? S.servicos.find(x=>x.id===S.editId) : null;
+  const nomes=$("#s_etapas").value.split("\n").map(x=>x.trim()).filter(Boolean);
+  const etapas=nomes.map((nome,i)=>({nome, ok: old?.etapas?.[i]?.ok ?? false}));
+  const dados={...(old?.dados||{})};
+  document.querySelectorAll("[id^=d_]").forEach(el=>{ const k=el.id.slice(2); const v=el.value.trim(); if(v==="") delete dados[k]; else dados[k]= el.type==="number"?Number(v):v; });
+  const row={cliente_id:S.clienteId,tipo:$("#s_tipo").value,titulo:$("#s_titulo").value.trim()||null,status:$("#s_status").value,valor:Number($("#s_valor").value)||0,recebido:Number($("#s_recebido").value)||0,proximo_passo:$("#s_prox").value.trim()||null,data_inicio:$("#s_inicio").value||null,etapas,dados};
+  const r = old ? await sb.from("servicos").update(row).eq("id",old.id) : await sb.from("servicos").insert(row);
+  if(r.error){ $("#serr").innerHTML=`<div class="err">${esc(r.error.message)}</div>`; return; }
+  await carregar(); toast("Salvo"); go("cliente");
+}
+async function excluirServico(id){
+  if(!confirm("Excluir este serviço?")) return;
+  const {error}=await sb.from("servicos").delete().eq("id",id);
+  if(error){ toast(error.message); return; } await carregar(); go("cliente");
+}
+
+/* ---------- início ---------- */
+async function init(){
+  if (!CONFIGURADO) { render(`<div class="main"><div class="err">O app ainda não foi conectado ao banco (URL e chave do Supabase).</div></div>`); return; }
+  const {data:{session}} = await sb.auth.getSession();
+  S.user = session?.user || null;
+  if (!S.user) { render(); return; }
+  render(`<div class="empty">Carregando…</div>`);
+  const {data:aut} = await sb.from("usuarios_autorizados").select("email").limit(1);
+  if(!aut?.length){ render(`<div class="main"><div class="err">Este e-mail (${esc(S.user.email)}) não está autorizado a usar o app.</div><button class="btn sec" style="margin-top:12px" onclick="sair()">Sair</button></div>`); return; }
+  await carregar(); render();
+}
+if (sb) sb.auth.onAuthStateChange((ev)=>{ if(ev==="SIGNED_OUT"){ S.user=null; render(); } });
+init();
+</script>
+</body>
+</html>
