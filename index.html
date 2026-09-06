@@ -65,15 +65,12 @@ h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em}
 .row .nome{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row .l2{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
 .tag{font-size:12px;padding:3px 8px;border-radius:6px;background:var(--blue-soft);color:var(--ink-2);font-weight:600}
-.tag.cnh{background:var(--green-soft);color:var(--green)}
-.tag.irpf{background:#EDE4F7;color:#5B3B8C}
-.tag.mei{background:#E1EAF5;color:#2D4E80}
-.tag.parcelamento{background:#FBEFD9;color:#7A4E0E}
-.tag.contabilidade{background:#E9E7E1;color:#4A463C}
-.tag.diversos{background:#FCE7F0;color:#8C2F5B}
+.tag.cat{background:color-mix(in srgb,var(--c) 14%,white);color:var(--c)}
+.swatch{width:14px;height:14px;border-radius:4px;display:inline-block;vertical-align:middle;margin-right:6px}
+input[type=color]{width:52px;height:40px;padding:2px}
 .tag.saldo{background:var(--red-soft);color:var(--red)}
 .tag.ok{background:var(--green-soft);color:var(--green)}
-.tag.desistiu,.tag.pausado{background:#EEE;color:#666}
+.tag.desistiu,.tag.pausado{background:#EEE!important;color:#666!important}
 .prox{font-size:13px;color:var(--amber);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .steps{display:flex;gap:3px;margin-top:8px}
 .steps i{flex:1;height:5px;border-radius:3px;background:var(--line)}
@@ -138,14 +135,11 @@ const SUPABASE_URL = "https://zvywfwuayedapocyzmjb.supabase.co";
 const SUPABASE_KEY = "sb_publishable_L78GX_vyX4b-c3oWftTLAQ_6OsAbotr";
 /* ================================= */
 
-const TIPOS = {cnh:"CNH", mei:"MEI", contabilidade:"Contabilidade", irpf:"Imposto de Renda", parcelamento:"Parcelamento", diversos:"Diversos"};
+let CATS = []; let TIPOS = {}; let ETAPAS_PADRAO = {};
+const catOf = id => CATS.find(c=>c.id===id) || {id, nome:id, cor:"#4A463C", etapas:[]};
+const tagCat = (id, txt) => `<span class="tag cat" style="--c:${catOf(id).cor}">${esc(txt ?? catOf(id).nome)}</span>`;
+function aplicarCats(rows){ CATS=rows; TIPOS=Object.fromEntries(rows.map(c=>[c.id,c.nome])); ETAPAS_PADRAO=Object.fromEntries(rows.map(c=>[c.id,c.etapas||[]])); }
 const STATUS = {andamento:"Em andamento", concluido:"Concluído", pausado:"Pausado", desistiu:"Desistiu"};
-const ETAPAS_PADRAO = {
-  cnh: ["Requerimento", "Curso teórico", "Coleta da foto e digitais", "Exames médico e psicológico", "Exame teórico", "Curso prático", "Exame prático", "Emissão da CNH"],
-  mei: ["DASN entregue","Parcelamento","Baixa do MEI"],
-  irpf: ["Senha Gov","Documentação","Transmitida"],
-  contabilidade: [], parcelamento: [], diversos: []
-};
 
 const CONFIGURADO = !SUPABASE_URL.startsWith("__");
 const sb = CONFIGURADO ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -161,12 +155,13 @@ async function copiar(txt, btn){ try{ await navigator.clipboard.writeText(txt); 
 
 /* ---------- dados ---------- */
 async function carregar(){
-  const [c, s] = await Promise.all([
+  const [c, s, k] = await Promise.all([
     sb.from("clientes").select("*").order("nome"),
-    sb.from("servicos").select("*").order("atualizado_em",{ascending:false})
+    sb.from("servicos").select("*").order("atualizado_em",{ascending:false}),
+    sb.from("categorias").select("*").order("ordem").order("nome")
   ]);
-  if (c.error || s.error) { render(erro(c.error||s.error)); return; }
-  S.clientes = c.data; S.servicos = s.data;
+  if (c.error || s.error || k.error) { render(erro(c.error||s.error||k.error)); return; }
+  S.clientes = c.data; S.servicos = s.data; aplicarCats(k.data);
 }
 const servDo = id => S.servicos.filter(s=>s.cliente_id===id);
 const saldo = s => (Number(s.valor)||0) - (Number(s.recebido)||0);
@@ -177,8 +172,8 @@ function go(view, extra={}){ Object.assign(S,{view},extra); window.scrollTo(0,0)
 function render(html){
   if (html){ app.innerHTML = html; return; }
   if (!S.user) { app.innerHTML = viewLogin(); return; }
-  const v = {lista:viewLista, pendencias:viewPendencias, cliente:viewCliente, clienteForm:viewClienteForm, servicoForm:viewServicoForm}[S.view];
-  app.innerHTML = v() + (["lista","pendencias","cliente"].includes(S.view) ? tabs() : "");
+  const v = {lista:viewLista, pendencias:viewPendencias, cliente:viewCliente, clienteForm:viewClienteForm, servicoForm:viewServicoForm, categorias:viewCategorias, categoriaForm:viewCategoriaForm}[S.view];
+  app.innerHTML = v() + (["lista","pendencias","cliente","categorias"].includes(S.view) ? tabs() : "");
 }
 const erro = e => `<div class="main"><div class="err">${esc(e.message||e)}</div><button class="btn sec" style="margin-top:12px" onclick="init()">Tentar de novo</button></div>`;
 
@@ -237,7 +232,7 @@ function viewLista(){
   const ativos = S.servicos.filter(s=>s.status==="andamento");
   const aReceber = ativos.reduce((a,s)=>a+Math.max(saldo(s),0),0);
   const comPasso = ativos.filter(s=>s.proximo_passo).length;
-  return topo("Maninho", null, `<button onclick="sair()">Sair</button>`) + `<div class="main">
+  return topo("Maninho", null, `<button onclick="go('categorias')" title="Categorias">Categorias</button><button onclick="sair()">Sair</button>`) + `<div class="main">
     <div class="search"><input placeholder="Buscar por nome, CPF ou CNPJ" value="${esc(S.busca)}" oninput="S.busca=this.value;renderLista()"></div>
     <div class="chips">${["todos",...Object.keys(TIPOS)].map(t=>`<button class="chip ${S.filtro===t?"on":""}" onclick="S.filtro='${t}';render()">${t==="todos"?"Todos":TIPOS[t]}</button>`).join("")}</div>
     <div class="resumo">
@@ -261,7 +256,7 @@ function listaHTML(lista){
     const steps = ativos.find(s=>s.etapas?.length)?.etapas;
     return `<button class="row" onclick="go('cliente',{clienteId:'${c.id}'})">
       <div class="l1"><span class="nome">${esc(c.nome)}</span>${sd>0?`<span class="tag saldo">${brl(sd)}</span>`:""}</div>
-      <div class="l2">${ss.map(s=>`<span class="tag ${s.tipo} ${s.status!=="andamento"?s.status:""}">${esc(s.titulo||TIPOS[s.tipo])}${s.status==="concluido"?" ✓":""}</span>`).join("")||`<span class="tag">sem serviço</span>`}</div>
+      <div class="l2">${ss.map(s=>`<span class="tag cat ${s.status!=="andamento"?s.status:""}" style="--c:${catOf(s.tipo).cor}">${esc(s.titulo||TIPOS[s.tipo])}${s.status==="concluido"?" ✓":""}</span>`).join("")||`<span class="tag">sem serviço</span>`}</div>
       ${prox?`<div class="prox">→ ${esc(prox)}</div>`:""}
       ${steps?`<div class="steps">${steps.map(e=>`<i class="${e.ok?"ok":""}"></i>`).join("")}</div>`:""}
     </button>`;
@@ -276,7 +271,7 @@ function viewPendencias(){
   const parc = ativos.filter(s=>s.tipo==="parcelamento"&&s.dados?.parcelas_total);
   const item = (s,extra) => { const c=cliente(s.cliente_id); return `<button class="row" onclick="go('cliente',{clienteId:'${c.id}'})">
       <div class="l1"><span class="nome">${esc(c.nome)}</span>${extra}</div>
-      <div class="l2"><span class="tag ${s.tipo}">${esc(s.titulo||TIPOS[s.tipo])}</span><span style="font-size:12px;color:var(--ink-3)">atualizado ${fmtDate(s.atualizado_em.slice(0,10))}</span></div>
+      <div class="l2">${tagCat(s.tipo, s.titulo||TIPOS[s.tipo])}<span style="font-size:12px;color:var(--ink-3)">atualizado ${fmtDate(s.atualizado_em.slice(0,10))}</span></div>
       ${s.proximo_passo?`<div class="prox">→ ${esc(s.proximo_passo)}</div>`:""}</button>`; };
   return topo("Pendências", null, `<button onclick="sair()">Sair</button>`) + `<div class="main">
     <div class="sec-h">Saldo em aberto · ${brl(devendo.reduce((a,s)=>a+saldo(s),0))}</div>
@@ -320,7 +315,7 @@ function servicoCard(s){
   if (d.recibos) extra.push(`<div class="kv"><span class="k">Recibos</span><span class="v mono">${esc(d.recibos)}</span></div>`);
   if (d.anotacoes) extra.push(`<div class="kv"><span class="k">Anotações</span><span class="v">${esc(d.anotacoes)}</span></div>`);
   return `<div class="card">
-    <h3><span class="tag ${s.tipo}">${TIPOS[s.tipo]}</span>${esc(s.titulo&&s.titulo!==TIPOS[s.tipo]?s.titulo:"")}<span class="sp"></span><span class="tag ${s.status==="andamento"?"":s.status==="concluido"?"ok":s.status}">${STATUS[s.status]}</span></h3>
+    <h3>${tagCat(s.tipo)}${esc(s.titulo&&s.titulo!==TIPOS[s.tipo]?s.titulo:"")}<span class="sp"></span><span class="tag ${s.status==="andamento"?"":s.status==="concluido"?"ok":s.status}">${STATUS[s.status]}</span></h3>
     ${(Number(s.valor)||Number(s.recebido))?`<div class="money-line"><div><b>${brl(s.valor)}</b><span>valor</span></div><div><b>${brl(s.recebido)}</b><span>recebido</span></div><div class="${sd>0?"neg":""}"><b>${brl(sd)}</b><span>saldo</span></div></div>`:""}
     ${s.proximo_passo?`<div class="note">→ ${esc(s.proximo_passo)}</div>`:""}
     ${etapas?`<div style="margin-top:8px">${etapas}</div>`:""}
@@ -375,17 +370,17 @@ async function excluirCliente(id){
 
 /* ---------- formulário serviço ---------- */
 function viewServicoForm(){
-  const s = S.editId ? S.servicos.find(x=>x.id===S.editId) : {tipo:"cnh",status:"andamento",etapas:null,dados:{}};
+  const s = S.editId ? S.servicos.find(x=>x.id===S.editId) : {tipo:(CATS[0]||{}).id,status:"andamento",etapas:null,dados:{}};
   const d=s.dados||{};
   return topo(S.editId?"Editar serviço":"Novo serviço","go('cliente')") + `<div class="main">
-    <label>Tipo</label><select id="s_tipo" onchange="tipoMudou()" ${S.editId?"disabled":""}>${Object.entries(TIPOS).map(([k,v])=>`<option value="${k}" ${s.tipo===k?"selected":""}>${v}</option>`).join("")}</select>
+    <label>Tipo</label><select id="s_tipo" onchange="tipoMudou()">${Object.entries(TIPOS).map(([k,v])=>`<option value="${k}" ${s.tipo===k?"selected":""}>${v}</option>`).join("")}</select>
     <label>Título (opcional)</label><input id="s_titulo" value="${esc(s.titulo||"")}" placeholder="ex.: 1ª CNH, Regularize, IRPF 2026">
     <label>Situação</label><select id="s_status">${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${s.status===k?"selected":""}>${v}</option>`).join("")}</select>
     <div class="grid2"><label>Valor (R$)</label><label>Recebido (R$)</label></div>
     <div class="grid2"><input id="s_valor" type="number" inputmode="decimal" step="0.01" value="${s.valor||""}"><input id="s_recebido" type="number" inputmode="decimal" step="0.01" value="${s.recebido||""}"></div>
     <label>Próximo passo</label><textarea id="s_prox" placeholder="O que falta fazer / combinado com o cliente">${esc(s.proximo_passo||"")}</textarea>
     <label>Data de início</label><input id="s_inicio" type="date" value="${s.data_inicio||""}">
-    <label>Etapas (uma por linha; a ordem é mantida)</label><textarea id="s_etapas" style="min-height:130px">${esc((s.etapas??ETAPAS_PADRAO[s.tipo].map(n=>({nome:n}))).map(e=>e.nome).join("\n"))}</textarea>
+    <label>Etapas (uma por linha; a ordem é mantida)</label><textarea id="s_etapas" style="min-height:130px">${esc((s.etapas??(ETAPAS_PADRAO[s.tipo]||[]).map(n=>({nome:n}))).map(e=>e.nome).join("\n"))}</textarea>
     <div id="s_extra">${extraCampos(s.tipo,d)}</div>
     <div id="serr"></div>
     <div class="btn-row"><button class="btn" onclick="salvarServico()">Salvar</button></div>
@@ -396,12 +391,12 @@ function extraCampos(tipo,d){
   const f=(k,l,type="text")=>`<label>${l}</label><input id="d_${k}" type="${type}" value="${esc(d[k]??"")}">`;
   if(tipo==="parcelamento") return `<div class="grid2">${f("parcelas_total","Total de parcelas","number")}${f("parcelas_emitidas","Guias já emitidas","number")}</div>${f("valor_por_emissao","Cobrado por emissão (R$)","number")}${f("acesso","Acesso / senha do sistema")}${f("referencia","Referência (CNPJ, inscrição, placa...)")}${f("protocolo","Protocolo")}`;
   if(tipo==="mei") return `${f("protocolo_vre","Protocolo VRE")}${f("nire","NIRE")}`;
-  if(tipo==="cnh") return `<div class="grid2">${f("renach","RENACH")}${f("registro","Registro da CNH")}</div>${f("anotacoes","Anotações")}`;
+  if(tipo==="cnh"||tipo==="reciclagem") return `<div class="grid2">${f("renach","RENACH")}${f("registro","Registro da CNH")}</div>${f("anotacoes","Anotações")}`;
   if(tipo==="diversos") return `${f("referencia","Referência (RENAVAM, placa, nº...)")}${f("protocolo","Protocolo")}${f("anotacoes","Anotações")}`;
   if(tipo==="irpf") return `${f("situacao","Situação (Transmitida, Falta documentação...)")}${f("recibos","Recibos de anos anteriores")}${f("anotacoes","Anotações")}`;
   return f("anotacoes","Anotações");
 }
-function tipoMudou(){ const t=$("#s_tipo").value; $("#s_etapas").value=ETAPAS_PADRAO[t].join("\n"); $("#s_extra").innerHTML=extraCampos(t,{}); }
+function tipoMudou(){ const t=$("#s_tipo").value; $("#s_etapas").value=(ETAPAS_PADRAO[t]||[]).join("\n"); $("#s_extra").innerHTML=extraCampos(t,{}); }
 async function salvarServico(){
   const old = S.editId ? S.servicos.find(x=>x.id===S.editId) : null;
   const nomes=$("#s_etapas").value.split("\n").map(x=>x.trim()).filter(Boolean);
@@ -417,6 +412,45 @@ async function excluirServico(id){
   if(!confirm("Excluir este serviço?")) return;
   const {error}=await sb.from("servicos").delete().eq("id",id);
   if(error){ toast(error.message); return; } await carregar(); go("cliente");
+}
+
+
+/* ---------- categorias ---------- */
+function viewCategorias(){
+  const uso = id => S.servicos.filter(s=>s.tipo===id).length;
+  return topo("Categorias","go('lista')") + `<div class="main">
+    <p style="color:var(--ink-2);font-size:14px;margin:0 0 12px">Toque para editar o nome, a cor ou as etapas padrão. A ordem aqui é a ordem dos filtros.</p>
+    ${CATS.map(c=>`<button class="row" onclick="go('categoriaForm',{editId:'${c.id}'})"><div class="l1"><span class="swatch" style="background:${c.cor}"></span><span class="nome">${esc(c.nome)}</span><span style="font-size:12px;color:var(--ink-3)">${uso(c.id)} serviço${uso(c.id)===1?"":"s"}</span></div>${(c.etapas||[]).length?`<div style="font-size:12px;color:var(--ink-3);margin-top:4px">${c.etapas.length} etapas padrão</div>`:""}</button>`).join("")}
+    <button class="btn sec" style="margin-top:6px" onclick="go('categoriaForm',{editId:null})">+ Nova categoria</button>
+  </div>`;
+}
+function viewCategoriaForm(){
+  const c = S.editId ? catOf(S.editId) : {nome:"",cor:"#1E8E1E",etapas:[],ordem:(CATS.length+1)*10};
+  const uso = S.editId ? S.servicos.filter(s=>s.tipo===S.editId).length : 0;
+  return topo(S.editId?"Editar categoria":"Nova categoria","go('categorias')") + `<div class="main">
+    <label>Nome</label><input id="c_nome" value="${esc(c.nome)}" placeholder="ex.: Reciclagem, Transferência, Visto">
+    <div class="grid2"><div><label>Cor</label><input id="c_cor" type="color" value="${c.cor}"></div><div><label>Posição nos filtros</label><input id="c_ordem" type="number" value="${c.ordem}"></div></div>
+    <label>Etapas padrão para novos serviços (uma por linha)</label><textarea id="c_etapas" style="min-height:140px">${esc((c.etapas||[]).join("\n"))}</textarea>
+    <div id="cerr"></div>
+    <div class="btn-row"><button class="btn" onclick="salvarCategoria()">Salvar</button></div>
+    ${S.editId?`<button class="btn danger" style="margin-top:10px" onclick="excluirCategoria('${S.editId}',${uso})">Excluir categoria</button>`:""}
+  </div>`;
+}
+const slug = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+async function salvarCategoria(){
+  const nome=$("#c_nome").value.trim(); if(!nome){ $("#cerr").innerHTML=`<div class="err">Informe o nome.</div>`; return; }
+  const row={nome,cor:$("#c_cor").value,ordem:Number($("#c_ordem").value)||100,etapas:$("#c_etapas").value.split("\n").map(x=>x.trim()).filter(Boolean)};
+  let r;
+  if(S.editId) r=await sb.from("categorias").update(row).eq("id",S.editId);
+  else { const id=slug(nome); if(!id||CATS.some(c=>c.id===id)){ $("#cerr").innerHTML=`<div class="err">Já existe uma categoria com esse nome.</div>`; return; } r=await sb.from("categorias").insert({id,...row}); }
+  if(r.error){ $("#cerr").innerHTML=`<div class="err">${esc(r.error.message)}</div>`; return; }
+  await carregar(); toast("Salvo"); go("categorias");
+}
+async function excluirCategoria(id,uso){
+  if(uso>0){ toast(`Mova antes os ${uso} serviços desta categoria`); return; }
+  if(!confirm("Excluir esta categoria?")) return;
+  const {error}=await sb.from("categorias").delete().eq("id",id);
+  if(error){ toast(error.message); return; } await carregar(); go("categorias");
 }
 
 /* ---------- início ---------- */
