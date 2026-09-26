@@ -68,6 +68,16 @@ h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em}
 .tag.cat{background:color-mix(in srgb,var(--c) 14%,white);color:var(--c)}
 .swatch{width:14px;height:14px;border-radius:4px;display:inline-block;vertical-align:middle;margin-right:6px}
 input[type=color]{width:52px;height:40px;padding:2px}
+.rel{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;width:100%;text-align:left;display:flex;align-items:center;gap:10px}
+.rel:active{background:#F1F3EF}
+.rel .t{font-weight:600;flex:1}
+.rel .n{font-size:13px;color:var(--ink-3)}
+.rel .n.alerta{color:var(--red);font-weight:600}
+.lin{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:6px;width:100%;text-align:left;display:flex;gap:8px;align-items:baseline}
+.lin .nm{font-weight:600;flex:1;min-width:0}
+.lin .dt{font-size:13px;color:var(--ink-2);flex:none}
+.lin .sub{font-size:13px;color:var(--ink-3);width:100%;margin-top:3px}
+.lin.w{flex-wrap:wrap}
 .tag.saldo{background:var(--red-soft);color:var(--red)}
 .tag.ok{background:var(--green-soft);color:var(--green)}
 .tag.desistiu,.tag.pausado{background:#EEE!important;color:#666!important}
@@ -172,8 +182,8 @@ function go(view, extra={}){ Object.assign(S,{view},extra); window.scrollTo(0,0)
 function render(html){
   if (html){ app.innerHTML = html; return; }
   if (!S.user) { app.innerHTML = viewLogin(); return; }
-  const v = {lista:viewLista, pendencias:viewPendencias, cliente:viewCliente, clienteForm:viewClienteForm, servicoForm:viewServicoForm, categorias:viewCategorias, categoriaForm:viewCategoriaForm}[S.view];
-  app.innerHTML = v() + (["lista","pendencias","cliente","categorias"].includes(S.view) ? tabs() : "");
+  const v = {lista:viewLista, pendencias:viewPendencias, cliente:viewCliente, clienteForm:viewClienteForm, servicoForm:viewServicoForm, categorias:viewCategorias, categoriaForm:viewCategoriaForm, perguntas:viewPerguntas}[S.view];
+  app.innerHTML = v() + (["lista","pendencias","cliente","categorias","perguntas"].includes(S.view) ? tabs() : "");
 }
 const erro = e => `<div class="main"><div class="err">${esc(e.message||e)}</div><button class="btn sec" style="margin-top:12px" onclick="init()">Tentar de novo</button></div>`;
 
@@ -183,12 +193,14 @@ function topo(titulo, back, right=""){
 function tabs(){
   const ic = {
     lista:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/></svg>',
-    pend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+    pend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    ask:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>'
   };
   return `<div class="tabs">
     <button class="${S.tab==="lista"?"on":""}" onclick="go('lista',{tab:'lista',clienteId:null})">${ic.lista}Clientes</button>
     <button class="add" onclick="go('clienteForm',{editId:null})"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></span></button>
     <button class="${S.tab==="pendencias"?"on":""}" onclick="go('pendencias',{tab:'pendencias'})">${ic.pend}Pendências</button>
+    <button class="${S.tab==="perguntas"?"on":""}" onclick="go('perguntas',{tab:'perguntas',relId:null})">${ic.ask}Relatórios</button>
   </div>`;
 }
 
@@ -451,6 +463,65 @@ async function excluirCategoria(id,uso){
   if(!confirm("Excluir esta categoria?")) return;
   const {error}=await sb.from("categorias").delete().eq("id",id);
   if(error){ toast(error.message); return; } await carregar(); go("categorias");
+}
+
+
+/* ---------- relatórios ---------- */
+const dias = d => Math.floor((Date.now()-new Date(d))/864e5);
+const linha = (c, dt, sub) => `<button class="lin ${sub?"w":""}" onclick="go('cliente',{clienteId:'${c.id}',tab:'lista'})"><span class="nm">${esc(c.nome)}</span>${dt?`<span class="dt">${dt}</span>`:""}${sub?`<span class="sub">${esc(sub)}</span>`:""}</button>`;
+const RELATORIOS = [
+  { id:"semtel", nome:"Clientes sem telefone", alerta:true,
+    itens: () => S.clientes.filter(c=>!c.telefone).map(c=>({c})),
+    resumo: n => `${n} cliente${n===1?"":"s"} sem telefone cadastrado` },
+  { id:"semgov", nome:"Em andamento sem senha Gov", alerta:true,
+    itens: () => S.clientes.filter(c=>!c.senha_gov && servDo(c.id).some(s=>s.status==="andamento")).map(c=>({c})),
+    resumo: n => `${n} com serviço em andamento e sem senha Gov` },
+  { id:"semcpf", nome:"Cadastro incompleto (sem CPF)", alerta:true,
+    itens: () => S.clientes.filter(c=>!c.cpf).map(c=>({c})),
+    resumo: n => `${n} cliente${n===1?"":"s"} sem CPF` },
+  { id:"cnhparada", nome:"CNH parada há mais tempo",
+    itens: () => S.servicos.filter(s=>(s.tipo==="cnh"||s.tipo==="reciclagem")&&s.status==="andamento").map(s=>({c:cliente(s.cliente_id),d:dias(s.atualizado_em),sub:s.proximo_passo})).sort((a,b)=>b.d-a.d),
+    resumo: n => `${n} CNH${n===1?"":"s"} em andamento, da mais parada para a mais recente`, dt: x => `${x.d} dias` },
+  { id:"parados", nome:"Tudo que está parado há 30+ dias",
+    itens: () => S.servicos.filter(s=>s.status==="andamento"&&dias(s.atualizado_em)>=30).map(s=>({c:cliente(s.cliente_id),d:dias(s.atualizado_em),sub:`${TIPOS[s.tipo]||s.tipo}${s.proximo_passo?" · "+s.proximo_passo:""}`})).sort((a,b)=>b.d-a.d),
+    resumo: n => `${n} serviço${n===1?"":"s"} sem atualização há 30 dias ou mais`, dt: x => `${x.d} dias` },
+  { id:"devendo", nome:"Quem me deve",
+    itens: () => S.servicos.filter(s=>s.status==="andamento"&&saldo(s)>0).map(s=>({c:cliente(s.cliente_id),v:saldo(s),sub:TIPOS[s.tipo]||s.tipo})).sort((a,b)=>b.v-a.v),
+    resumo: (n,l) => `${n} serviço${n===1?"":"s"} com saldo · total ${brl(l.reduce((a,x)=>a+x.v,0))}`, dt: x => brl(x.v) },
+  { id:"datas", nome:"Próximos passos com data",
+    itens: () => { const y=new Date().getFullYear(); const l=[]; S.servicos.filter(s=>s.status==="andamento"&&s.proximo_passo).forEach(s=>{const m=s.proximo_passo.match(/(\d{2})\/(\d{2})(?:\/(\d{4}))?/); if(m){l.push({c:cliente(s.cliente_id),d:new Date(m[3]||y,m[2]-1,m[1]),sub:s.proximo_passo});}}); return l.sort((a,b)=>a.d-b.d); },
+    resumo: n => `${n} próximo${n===1?"":"s"} passo${n===1?"":"s"} com data, em ordem cronológica`, dt: x => fmtDate(x.d.toISOString().slice(0,10)) },
+  { id:"semprox", nome:"Em andamento sem próximo passo",
+    itens: () => S.servicos.filter(s=>s.status==="andamento"&&!s.proximo_passo&&s.tipo!=="parcelamento").map(s=>({c:cliente(s.cliente_id),sub:TIPOS[s.tipo]||s.tipo})),
+    resumo: n => `${n} serviço${n===1?"":"s"} em andamento sem próximo passo anotado` },
+  { id:"concluidos", nome:"Concluídos nos últimos 30 dias",
+    itens: () => S.servicos.filter(s=>s.status==="concluido"&&dias(s.atualizado_em)<=30).map(s=>({c:cliente(s.cliente_id),d:dias(s.atualizado_em),sub:TIPOS[s.tipo]||s.tipo})).sort((a,b)=>a.d-b.d),
+    resumo: n => `${n} serviço${n===1?"":"s"} concluído${n===1?"":"s"} nos últimos 30 dias`, dt: x => x.d===0?"hoje":`há ${x.d} d` },
+  { id:"parcelas", nome:"Parcelamentos — guias emitidas",
+    itens: () => S.servicos.filter(s=>s.tipo==="parcelamento"&&s.status==="andamento"&&s.dados?.parcelas_total).map(s=>({c:cliente(s.cliente_id),e:s.dados.parcelas_emitidas||0,t:s.dados.parcelas_total,sub:s.titulo})).sort((a,b)=>(a.e/a.t)-(b.e/b.t)),
+    resumo: n => `${n} parcelamento${n===1?"":"s"} em andamento (menos avançados primeiro)`, dt: x => `${x.e}/${x.t}` },
+  { id:"categoria", nome:"Resumo por categoria",
+    itens: () => CATS.map(c=>{const a=S.servicos.filter(s=>s.tipo===c.id); return {c:{id:null,nome:c.nome},sub:`${a.filter(s=>s.status==="andamento").length} em andamento · ${a.filter(s=>s.status==="concluido").length} concluídos · ${a.filter(s=>s.status==="desistiu").length} desistiram`};}),
+    resumo: n => `${S.clientes.length} clientes · ${S.servicos.length} serviços`, semLink:true },
+  { id:"cidade", nome:"Clientes por cidade",
+    itens: () => { const m={}; S.clientes.forEach(c=>{const k=c.cidade?`${c.cidade}${c.estado?" - "+c.estado:""}`:"Sem cidade"; m[k]=(m[k]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({c:{id:null,nome:k},n:v})); },
+    resumo: n => `${n} cidade${n===1?"":"s"}`, dt: x => `${x.n}`, semLink:true },
+];
+function viewPerguntas(){
+  if (S.relId) return viewRelatorio();
+  return topo("Relatórios", null, "") + `<div class="main">
+    ${RELATORIOS.map(r=>{ const n=r.itens().length; return `<button class="rel" onclick="go('perguntas',{relId:'${r.id}'})"><span class="t">${r.nome}</span><span class="n ${r.alerta&&n?"alerta":""}">${n}</span></button>`; }).join("")}
+  </div>`;
+}
+function viewRelatorio(){
+  const r = RELATORIOS.find(x=>x.id===S.relId); const l = r.itens();
+  return topo(r.nome, "go('perguntas',{relId:null})") + `<div class="main">
+    <p style="color:var(--ink-2);font-size:14px;margin:0 0 12px">${r.resumo(l.length,l)}</p>
+    ${l.length ? l.map(x => r.semLink
+        ? `<div class="lin ${x.sub?"w":""}"><span class="nm">${esc(x.c.nome)}</span>${r.dt?`<span class="dt">${r.dt(x)}</span>`:""}${x.sub?`<span class="sub">${esc(x.sub)}</span>`:""}</div>`
+        : linha(x.c, r.dt?r.dt(x):"", x.sub)).join("")
+      : `<div class="empty">Nada aqui. 👍</div>`}
+  </div>`;
 }
 
 /* ---------- início ---------- */
