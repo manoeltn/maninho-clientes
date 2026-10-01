@@ -238,15 +238,14 @@ function viewLista(){
   const qn = S.busca.toLowerCase();
   let lista = S.clientes.filter(c => {
     const okBusca = !S.busca || c.nome.toLowerCase().includes(qn) || (q && (c.cpf||"").replace(/\D/g,"").includes(q)) || (q && (c.cnpj||"").replace(/\D/g,"").includes(q));
-    const okTipo = S.filtro==="todos" || servDo(c.id).some(s=>s.tipo===S.filtro && s.status!=="concluido" && s.status!=="desistiu");
-    return okBusca && okTipo;
+    return okBusca && okFiltro(c);
   });
   const ativos = S.servicos.filter(s=>s.status==="andamento");
   const aReceber = ativos.reduce((a,s)=>a+Math.max(saldo(s),0),0);
   const comPasso = ativos.filter(s=>s.proximo_passo).length;
   return topo("Maninho", null, `<button onclick="go('categorias')" title="Categorias">Categorias</button><button onclick="sair()">Sair</button>`) + `<div class="main">
     <div class="search"><input placeholder="Buscar por nome, CPF ou CNPJ" value="${esc(S.busca)}" oninput="S.busca=this.value;renderLista()"></div>
-    <div class="chips">${["todos",...Object.keys(TIPOS)].map(t=>`<button class="chip ${S.filtro===t?"on":""}" onclick="S.filtro='${t}';render()">${t==="todos"?"Todos":TIPOS[t]}</button>`).join("")}</div>
+    <div class="chips">${["todos","andamento",...Object.keys(TIPOS)].map(t=>`<button class="chip ${S.filtro===t?"on":""}" onclick="S.filtro='${t}';render()">${t==="todos"?"Todos":t==="andamento"?"Em andamento":TIPOS[t]}</button>`).join("")}</div>
     <div class="resumo">
       <div><b>${ativos.length}</b><span>em andamento</span></div>
       <div><b class="money">${brl(aReceber)}</b><span>a receber</span></div>
@@ -255,13 +254,16 @@ function viewLista(){
     <div id="lista">${listaHTML(lista)}</div>
   </div>`;
 }
+const okFiltro = c => S.filtro==="todos" ? true
+  : S.filtro==="andamento" ? servDo(c.id).some(s=>s.status==="andamento")
+  : servDo(c.id).some(s=>s.tipo===S.filtro && s.status!=="concluido" && s.status!=="desistiu");
 function renderLista(){ const q=S.busca.toLowerCase(), qd=q.replace(/\D/g,"");
-  const lista=S.clientes.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(qd&&(c.cpf||"").replace(/\D/g,"").includes(qd))||(qd&&(c.cnpj||"").replace(/\D/g,"").includes(qd)))&&(S.filtro==="todos"||servDo(c.id).some(s=>s.tipo===S.filtro&&s.status!=="concluido"&&s.status!=="desistiu")));
+  const lista=S.clientes.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(qd&&(c.cpf||"").replace(/\D/g,"").includes(qd))||(qd&&(c.cnpj||"").replace(/\D/g,"").includes(qd)))&&okFiltro(c));
   $("#lista").innerHTML=listaHTML(lista); }
 function listaHTML(lista){
   if(!lista.length) return `<div class="empty">Nenhum cliente aqui ainda.<br>Toque em + para cadastrar.</div>`;
   return lista.map(c=>{
-    const ss = servDo(c.id).filter(s=>S.filtro==="todos"||s.tipo===S.filtro);
+    const ss = servDo(c.id).filter(s=>S.filtro==="todos"||(S.filtro==="andamento"?s.status==="andamento":s.tipo===S.filtro));
     const ativos = ss.filter(s=>s.status==="andamento");
     const sd = ativos.reduce((a,s)=>a+Math.max(saldo(s),0),0);
     const prox = ativos.find(s=>s.proximo_passo)?.proximo_passo;
@@ -506,11 +508,56 @@ const RELATORIOS = [
   { id:"cidade", nome:"Clientes por cidade",
     itens: () => { const m={}; S.clientes.forEach(c=>{const k=c.cidade?`${c.cidade}${c.estado?" - "+c.estado:""}`:"Sem cidade"; m[k]=(m[k]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({c:{id:null,nome:k},n:v})); },
     resumo: n => `${n} cidade${n===1?"":"s"}`, dt: x => `${x.n}`, semLink:true },
+  { id:"semetapa", nome:"Em andamento sem nenhuma etapa marcada",
+    itens: () => S.servicos.filter(s=>s.status==="andamento"&&(s.etapas||[]).length&&!s.etapas.some(e=>e.ok)).map(s=>({c:cliente(s.cliente_id),d:dias(s.criado_em),sub:`${TIPOS[s.tipo]||s.tipo}${s.proximo_passo?" · "+s.proximo_passo:""}`})).sort((a,b)=>b.d-a.d),
+    resumo: n => `${n} serviço${n===1?"":"s"} aberto${n===1?"":"s"} e ainda sem etapa concluída`, dt: x => `há ${x.d} d` },
+  { id:"quasefim", nome:"Falta só a última etapa",
+    itens: () => S.servicos.filter(s=>s.status==="andamento"&&(s.etapas||[]).length>1&&s.etapas.filter(e=>!e.ok).length===1).map(s=>({c:cliente(s.cliente_id),sub:`${TIPOS[s.tipo]||s.tipo} · falta: ${s.etapas.find(e=>!e.ok).nome}`})),
+    resumo: n => `${n} serviço${n===1?"":"s"} a uma etapa de concluir` },
+  { id:"pagonaoconcl", nome:"Pagos integralmente e ainda em andamento",
+    itens: () => S.servicos.filter(s=>s.status==="andamento"&&Number(s.valor)>0&&saldo(s)<=0).map(s=>({c:cliente(s.cliente_id),d:dias(s.atualizado_em),v:Number(s.valor),sub:`${TIPOS[s.tipo]||s.tipo} · ${brl(s.valor)}${s.proximo_passo?" · "+s.proximo_passo:""}`})).sort((a,b)=>b.d-a.d),
+    resumo: (n,l) => `${n} serviço${n===1?"":"s"} já quitado${n===1?"":"s"} (${brl(l.reduce((a,x)=>a+x.v,0))}) aguardando conclusão`, dt: x => `${x.d} d parado` },
+  { id:"desistiu", nome:"Desistências",
+    itens: () => S.servicos.filter(s=>s.status==="desistiu").map(s=>({c:cliente(s.cliente_id),v:Number(s.recebido),sub:`${TIPOS[s.tipo]||s.tipo} · pago ${brl(s.recebido)} de ${brl(s.valor)}`})),
+    resumo: (n,l) => `${n} desistência${n===1?"":"s"} · ${brl(l.reduce((a,x)=>a+x.v,0))} recebidos nesses casos` },
+  { id:"semcnpj", nome:"MEI / Contabilidade sem CNPJ", alerta:true,
+    itens: () => S.clientes.filter(c=>!c.cnpj && servDo(c.id).some(s=>(s.tipo==="mei"||s.tipo==="contabilidade")&&s.status!=="desistiu")).map(c=>({c})),
+    resumo: n => `${n} cliente${n===1?"":"s"} de MEI/Contabilidade sem CNPJ cadastrado` },
+  { id:"sembrowser", nome:"Em andamento sem navegador anotado",
+    itens: () => S.clientes.filter(c=>!c.navegador && servDo(c.id).some(s=>s.status==="andamento")).map(c=>({c})),
+    resumo: n => `${n} cliente${n===1?"":"s"} ativo${n===1?"":"s"} sem navegador/perfil anotado` },
+  { id:"semendereco", nome:"CNH sem endereço completo", alerta:true,
+    itens: () => S.clientes.filter(c=>servDo(c.id).some(s=>(s.tipo==="cnh"||s.tipo==="reciclagem")&&s.status==="andamento") && !(c.endereco&&c.cep&&c.cidade)).map(c=>({c,sub:[!c.endereco&&"endereço",!c.cep&&"CEP",!c.cidade&&"cidade"].filter(Boolean).join(", ")})),
+    resumo: n => `${n} cliente${n===1?"":"s"} de CNH com endereço incompleto` },
+  { id:"novos30", nome:"Clientes novos nos últimos 30 dias",
+    itens: () => S.clientes.filter(c=>dias(c.criado_em)<=30).map(c=>({c,d:dias(c.criado_em),sub:servDo(c.id).map(s=>TIPOS[s.tipo]||s.tipo).join(", ")||"sem serviço"})).sort((a,b)=>a.d-b.d),
+    resumo: n => `${n} cliente${n===1?"":"s"} cadastrado${n===1?"":"s"} nos últimos 30 dias`, dt: x => x.d===0?"hoje":`há ${x.d} d` },
+  { id:"semservico", nome:"Clientes sem nenhum serviço",
+    itens: () => S.clientes.filter(c=>!servDo(c.id).length).map(c=>({c})),
+    resumo: n => `${n} cliente${n===1?"":"s"} cadastrado${n===1?"":"s"} sem serviço` },
+  { id:"multiplos", nome:"Clientes com 2+ serviços em andamento",
+    itens: () => S.clientes.map(c=>({c,n:servDo(c.id).filter(s=>s.status==="andamento").length,sub:servDo(c.id).filter(s=>s.status==="andamento").map(s=>s.titulo||TIPOS[s.tipo]).join(" · ")})).filter(x=>x.n>=2).sort((a,b)=>b.n-a.n),
+    resumo: n => `${n} cliente${n===1?"":"s"} com mais de um serviço aberto`, dt: x => `${x.n}` },
+  { id:"faturamento", nome:"Faturamento por categoria",
+    itens: () => CATS.map(c=>{const a=S.servicos.filter(s=>s.tipo===c.id); const v=a.reduce((t,s)=>t+Number(s.valor),0), r=a.reduce((t,s)=>t+Number(s.recebido),0), ab=a.filter(s=>s.status!=="desistiu").reduce((t,s)=>t+Math.max(saldo(s),0),0); return {c:{id:null,nome:c.nome},v,r,sub:`contratado ${brl(v)} · recebido ${brl(r)} · a receber ${brl(ab)}`};}).filter(x=>x.v>0).sort((a,b)=>b.v-a.v),
+    resumo: (n,l) => `contratado ${brl(l.reduce((a,x)=>a+x.v,0))} · recebido ${brl(l.reduce((a,x)=>a+x.r,0))}`, semLink:true },
+  { id:"mes", nome:"Serviços iniciados por mês",
+    itens: () => { const m={}; S.servicos.forEach(s=>{const d=(s.data_inicio||s.criado_em||"").slice(0,7); if(d) m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[0].localeCompare(a[0])).map(([k,v])=>({c:{id:null,nome:k.split("-").reverse().join("/")},n:v})); },
+    resumo: n => `${n} ${n===1?"mês":"meses"} com serviços iniciados`, dt: x => `${x.n}`, semLink:true },
+  { id:"uf", nome:"Clientes por estado",
+    itens: () => { const m={}; S.clientes.forEach(c=>{const k=c.estado||"Sem UF"; m[k]=(m[k]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({c:{id:null,nome:k},n:v})); },
+    resumo: n => `${n} estado${n===1?"":"s"}`, dt: x => `${x.n}`, semLink:true },
+];
+const SECOES = [
+  ["Cadastro incompleto", ["semtel","semgov","semcpf","semcnpj","sembrowser","semendereco","semservico"]],
+  ["Andamento", ["cnhparada","parados","semprox","semetapa","quasefim","datas","multiplos","concluidos"]],
+  ["Dinheiro", ["devendo","pagonaoconcl","parcelas","faturamento","desistiu"]],
+  ["Visão geral", ["categoria","novos30","mes","cidade","uf"]],
 ];
 function viewPerguntas(){
   if (S.relId) return viewRelatorio();
   return topo("Relatórios", null, "") + `<div class="main">
-    ${RELATORIOS.map(r=>{ const n=r.itens().length; return `<button class="rel" onclick="go('perguntas',{relId:'${r.id}'})"><span class="t">${r.nome}</span><span class="n ${r.alerta&&n?"alerta":""}">${n}</span></button>`; }).join("")}
+    ${SECOES.map(([titulo,ids])=>`<div class="sec-h">${titulo}</div>`+ids.map(id=>RELATORIOS.find(r=>r.id===id)).filter(Boolean).map(r=>{ const n=r.itens().length; return `<button class="rel" onclick="go('perguntas',{relId:'${r.id}'})"><span class="t">${r.nome}</span><span class="n ${r.alerta&&n?"alerta":""}">${n}</span></button>`; }).join("")).join("")}
   </div>`;
 }
 function viewRelatorio(){
