@@ -256,12 +256,13 @@ function viewLista(){
 }
 const okFiltro = c => S.filtro==="todos" ? true
   : S.filtro==="andamento" ? servDo(c.id).some(s=>s.status==="andamento")
-  : servDo(c.id).some(s=>s.tipo===S.filtro && s.status!=="concluido" && s.status!=="desistiu");
+  : servDo(c.id).some(s=>s.tipo===S.filtro);
 function renderLista(){ const q=S.busca.toLowerCase(), qd=q.replace(/\D/g,"");
   const lista=S.clientes.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(qd&&(c.cpf||"").replace(/\D/g,"").includes(qd))||(qd&&(c.cnpj||"").replace(/\D/g,"").includes(qd)))&&okFiltro(c));
   $("#lista").innerHTML=listaHTML(lista); }
 function listaHTML(lista){
   if(!lista.length) return `<div class="empty">Nenhum cliente aqui ainda.<br>Toque em + para cadastrar.</div>`;
+  if(S.filtro!=="todos") lista=[...lista].sort((a,b)=>(servDo(b.id).some(s=>s.status==="andamento"&&(S.filtro==="andamento"||s.tipo===S.filtro))?1:0)-(servDo(a.id).some(s=>s.status==="andamento"&&(S.filtro==="andamento"||s.tipo===S.filtro))?1:0));
   return lista.map(c=>{
     const ss = servDo(c.id).filter(s=>S.filtro==="todos"||(S.filtro==="andamento"?s.status==="andamento":s.tipo===S.filtro));
     const ativos = ss.filter(s=>s.status==="andamento");
