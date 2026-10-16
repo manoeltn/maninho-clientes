@@ -46,7 +46,8 @@ h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em}
 /* busca e filtros */
 .search{display:flex;gap:8px;margin-bottom:10px}
 .search input{border-radius:12px;padding:12px 14px}
-.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin:0 -16px;padding-left:16px;padding-right:16px;scrollbar-width:none}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin:0 -16px;padding-left:16px;padding-right:16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+@media (min-width:600px){.chips{flex-wrap:wrap;overflow:visible;margin:0;padding-left:0;padding-right:0}}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;padding:7px 13px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:14px;color:var(--ink-2)}
 .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -127,6 +128,12 @@ input[type=color]{width:52px;height:40px;padding:2px}
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(246,247,243,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;padding:6px 8px calc(var(--sab) + 6px)}
 .tabs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--ink-3);padding:6px 0}
 .tabs button.on{color:var(--green)}
+.tabs .badge{position:absolute;top:2px;right:calc(50% - 22px);background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;display:flex;align-items:center;justify-content:center}
+.tabs button{position:relative}
+.tag.prazo{background:var(--amber-soft);color:#7A4E0E}
+.tag.prazo.hoje{background:var(--red-soft);color:var(--red)}
+.tag.prazo.venceu{background:var(--red);color:#fff}
+.aviso{background:var(--red-soft);color:var(--red);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:14px;font-weight:600;width:100%;text-align:left}
 .tabs button svg{width:24px;height:24px}
 .tabs .add{color:#fff}
 .tabs .add span{background:var(--brand);width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-top:-16px;box-shadow:0 4px 12px rgba(50,205,50,.35)}
@@ -199,7 +206,7 @@ function tabs(){
   return `<div class="tabs">
     <button class="${S.tab==="lista"?"on":""}" onclick="go('lista',{tab:'lista',clienteId:null})">${ic.lista}Clientes</button>
     <button class="add" onclick="go('clienteForm',{editId:null})"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></span></button>
-    <button class="${S.tab==="pendencias"?"on":""}" onclick="go('pendencias',{tab:'pendencias'})">${ic.pend}Pendências</button>
+    <button class="${S.tab==="pendencias"?"on":""}" onclick="go('pendencias',{tab:'pendencias'})">${ic.pend}Pendências${alertas().length?`<span class="badge">${alertas().length}</span>`:""}</button>
     <button class="${S.tab==="perguntas"?"on":""}" onclick="go('perguntas',{tab:'perguntas',relId:null})">${ic.ask}Relatórios</button>
   </div>`;
 }
@@ -244,6 +251,7 @@ function viewLista(){
   const aReceber = ativos.reduce((a,s)=>a+Math.max(saldo(s),0),0);
   const comPasso = ativos.filter(s=>s.proximo_passo).length;
   return topo("Maninho", null, `<button onclick="go('categorias')" title="Categorias">Categorias</button><button onclick="sair()">Sair</button>`) + `<div class="main">
+    ${alertas().length?`<button class="aviso" onclick="go('pendencias',{tab:'pendencias'})">⚠️ ${alertas().filter(s=>diasAte(s.prazo)<0).length} vencido${alertas().filter(s=>diasAte(s.prazo)<0).length===1?"":"s"} · ${alertas().filter(s=>diasAte(s.prazo)===0).length} hoje · ${alertas().filter(s=>diasAte(s.prazo)>0).length} nos próximos 7 dias — toque para ver</button>`:""}
     <div class="search"><input placeholder="Buscar por nome, CPF ou CNPJ" value="${esc(S.busca)}" oninput="S.busca=this.value;renderLista()"></div>
     <div class="chips">${["todos","andamento",...Object.keys(TIPOS)].map(t=>`<button class="chip ${S.filtro===t?"on":""}" onclick="S.filtro='${t}';render()">${t==="todos"?"Todos":t==="andamento"?"Em andamento":TIPOS[t]}</button>`).join("")}</div>
     <div class="resumo">
@@ -270,7 +278,7 @@ function listaHTML(lista){
     const prox = ativos.find(s=>s.proximo_passo)?.proximo_passo;
     const steps = ativos.find(s=>s.etapas?.length)?.etapas;
     return `<button class="row" onclick="go('cliente',{clienteId:'${c.id}'})">
-      <div class="l1"><span class="nome">${esc(c.nome)}</span>${sd>0?`<span class="tag saldo">${brl(sd)}</span>`:""}</div>
+      <div class="l1"><span class="nome">${esc(c.nome)}</span>${(()=>{const p=ativos.filter(s=>s.prazo).sort((a,b)=>a.prazo.localeCompare(b.prazo))[0]; return p&&diasAte(p.prazo)<=7?prazoTag(p.prazo):"";})()}${sd>0?`<span class="tag saldo">${brl(sd)}</span>`:""}</div>
       <div class="l2">${ss.map(s=>`<span class="tag cat ${s.status!=="andamento"?s.status:""}" style="--c:${catOf(s.tipo).cor}">${esc(s.titulo||TIPOS[s.tipo])}${s.status==="concluido"?" ✓":""}</span>`).join("")||`<span class="tag">sem serviço</span>`}</div>
       ${prox?`<div class="prox">→ ${esc(prox)}</div>`:""}
       ${steps?`<div class="steps">${steps.map(e=>`<i class="${e.ok?"ok":""}"></i>`).join("")}</div>`:""}
@@ -288,7 +296,14 @@ function viewPendencias(){
       <div class="l1"><span class="nome">${esc(c.nome)}</span>${extra}</div>
       <div class="l2">${tagCat(s.tipo, s.titulo||TIPOS[s.tipo])}<span style="font-size:12px;color:var(--ink-3)">atualizado ${fmtDate(s.atualizado_em.slice(0,10))}</span></div>
       ${s.proximo_passo?`<div class="prox">→ ${esc(s.proximo_passo)}</div>`:""}</button>`; };
+  const prazos = comPrazo();
+  const itemPrazo = s => { const c=cliente(s.cliente_id); return `<button class="row" onclick="go('cliente',{clienteId:'${c.id}'})">
+      <div class="l1"><span class="nome">${esc(c.nome)}</span>${prazoTag(s.prazo)}</div>
+      <div class="l2">${tagCat(s.tipo, s.titulo||TIPOS[s.tipo])}${s.prazo_obs?`<span style="font-size:13px;color:var(--ink-2)">${esc(s.prazo_obs)}</span>`:""}</div>
+      ${!s.prazo_obs&&s.proximo_passo?`<div class="prox">→ ${esc(s.proximo_passo.split("\n")[0])}</div>`:""}</button>`; };
   return topo("Pendências", null, `<button onclick="sair()">Sair</button>`) + `<div class="main">
+    <div class="sec-h">Prazos e agendamentos · ${alertas().length} nos próximos 7 dias</div>
+    ${prazos.map(itemPrazo).join("")||`<div class="empty">Nenhum prazo cadastrado. Defina em "Editar serviço".</div>`}
     <div class="sec-h">Saldo em aberto · ${brl(devendo.reduce((a,s)=>a+saldo(s),0))}</div>
     ${devendo.map(s=>item(s,`<span class="tag saldo">${brl(saldo(s))}</span>`)).join("")||`<div class="empty">Ninguém devendo.</div>`}
     <div class="sec-h">Próximo passo (mais antigos primeiro)</div>
@@ -332,6 +347,7 @@ function servicoCard(s){
   return `<div class="card">
     <h3>${tagCat(s.tipo)}${esc(s.titulo&&s.titulo!==TIPOS[s.tipo]?s.titulo:"")}<span class="sp"></span><span class="tag ${s.status==="andamento"?"":s.status==="concluido"?"ok":s.status}">${STATUS[s.status]}</span></h3>
     ${(Number(s.valor)||Number(s.recebido))?`<div class="money-line"><div><b>${brl(s.valor)}</b><span>valor</span></div><div><b>${brl(s.recebido)}</b><span>recebido</span></div><div class="${sd>0?"neg":""}"><b>${brl(sd)}</b><span>saldo</span></div></div>`:""}
+    ${s.prazo&&s.status==="andamento"?`<div style="margin-top:8px">${prazoTag(s.prazo)}${s.prazo_obs?` <span style="font-size:13px;color:var(--ink-2)">${esc(s.prazo_obs)}</span>`:""}</div>`:""}
     ${s.proximo_passo?`<div class="note">→ ${esc(s.proximo_passo)}</div>`:""}
     ${etapas?`<div style="margin-top:8px">${etapas}</div>`:""}
     ${extra.join("")}
@@ -394,6 +410,7 @@ function viewServicoForm(){
     <div class="grid2"><label>Valor (R$)</label><label>Recebido (R$)</label></div>
     <div class="grid2"><input id="s_valor" type="number" inputmode="decimal" step="0.01" value="${s.valor||""}"><input id="s_recebido" type="number" inputmode="decimal" step="0.01" value="${s.recebido||""}"></div>
     <label>Próximo passo</label><textarea id="s_prox" placeholder="O que falta fazer / combinado com o cliente">${esc(s.proximo_passo||"")}</textarea>
+    <div class="grid2"><div><label>Prazo / agendamento</label><input id="s_prazo" type="date" value="${s.prazo||""}"></div><div><label>O que vence</label><input id="s_prazo_obs" value="${esc(s.prazo_obs||"")}" placeholder="ex.: Prova teórica 14h"></div></div>
     <label>Data de início</label><input id="s_inicio" type="date" value="${s.data_inicio||""}">
     <label>Etapas (uma por linha; a ordem é mantida)</label><textarea id="s_etapas" style="min-height:130px">${esc((s.etapas??(ETAPAS_PADRAO[s.tipo]||[]).map(n=>({nome:n}))).map(e=>e.nome).join("\n"))}</textarea>
     <div id="s_extra">${extraCampos(s.tipo,d)}</div>
@@ -418,7 +435,7 @@ async function salvarServico(){
   const etapas=nomes.map((nome,i)=>({nome, ok: old?.etapas?.[i]?.ok ?? false}));
   const dados={...(old?.dados||{})};
   document.querySelectorAll("[id^=d_]").forEach(el=>{ const k=el.id.slice(2); const v=el.value.trim(); if(v==="") delete dados[k]; else dados[k]= el.type==="number"?Number(v):v; });
-  const row={cliente_id:S.clienteId,tipo:$("#s_tipo").value,titulo:$("#s_titulo").value.trim()||null,status:$("#s_status").value,valor:Number($("#s_valor").value)||0,recebido:Number($("#s_recebido").value)||0,proximo_passo:$("#s_prox").value.trim()||null,data_inicio:$("#s_inicio").value||null,etapas,dados};
+  const row={cliente_id:S.clienteId,tipo:$("#s_tipo").value,titulo:$("#s_titulo").value.trim()||null,status:$("#s_status").value,valor:Number($("#s_valor").value)||0,recebido:Number($("#s_recebido").value)||0,proximo_passo:$("#s_prox").value.trim()||null,data_inicio:$("#s_inicio").value||null,prazo:$("#s_prazo").value||null,prazo_obs:$("#s_prazo_obs").value.trim()||null,etapas,dados};
   const r = old ? await sb.from("servicos").update(row).eq("id",old.id) : await sb.from("servicos").insert(row);
   if(r.error){ $("#serr").innerHTML=`<div class="err">${esc(r.error.message)}</div>`; return; }
   await carregar(); toast("Salvo"); go("cliente");
@@ -471,6 +488,11 @@ async function excluirCategoria(id,uso){
 
 /* ---------- relatórios ---------- */
 const dias = d => Math.floor((Date.now()-new Date(d))/864e5);
+const hojeISO = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+const diasAte = iso => Math.round((new Date(iso+"T12:00:00") - new Date(hojeISO()+"T12:00:00"))/864e5);
+const prazoTag = iso => { const n=diasAte(iso); const cls=n<0?"venceu":n===0?"hoje":""; const txt=n<0?`venceu há ${-n} d`:n===0?"HOJE":n===1?"amanhã":`em ${n} dias`; return `<span class="tag prazo ${cls}">${fmtDate(iso)} · ${txt}</span>`; };
+const comPrazo = () => S.servicos.filter(s=>s.status==="andamento"&&s.prazo).sort((a,b)=>a.prazo.localeCompare(b.prazo));
+const alertas = () => comPrazo().filter(s=>diasAte(s.prazo)<=7);
 const linha = (c, dt, sub) => `<button class="lin ${sub?"w":""}" onclick="go('cliente',{clienteId:'${c.id}',tab:'lista'})"><span class="nm">${esc(c.nome)}</span>${dt?`<span class="dt">${dt}</span>`:""}${sub?`<span class="sub">${esc(sub)}</span>`:""}</button>`;
 const RELATORIOS = [
   { id:"semtel", nome:"Clientes sem telefone", alerta:true,
@@ -491,9 +513,12 @@ const RELATORIOS = [
   { id:"devendo", nome:"Quem me deve",
     itens: () => S.servicos.filter(s=>s.status==="andamento"&&saldo(s)>0).map(s=>({c:cliente(s.cliente_id),v:saldo(s),sub:TIPOS[s.tipo]||s.tipo})).sort((a,b)=>b.v-a.v),
     resumo: (n,l) => `${n} serviço${n===1?"":"s"} com saldo · total ${brl(l.reduce((a,x)=>a+x.v,0))}`, dt: x => brl(x.v) },
-  { id:"datas", nome:"Próximos passos com data",
-    itens: () => { const y=new Date().getFullYear(); const l=[]; S.servicos.filter(s=>s.status==="andamento"&&s.proximo_passo).forEach(s=>{const m=s.proximo_passo.match(/(\d{2})\/(\d{2})(?:\/(\d{4}))?/); if(m){l.push({c:cliente(s.cliente_id),d:new Date(m[3]||y,m[2]-1,m[1]),sub:s.proximo_passo});}}); return l.sort((a,b)=>a.d-b.d); },
-    resumo: n => `${n} próximo${n===1?"":"s"} passo${n===1?"":"s"} com data, em ordem cronológica`, dt: x => fmtDate(x.d.toISOString().slice(0,10)) },
+  { id:"datas", nome:"Prazos e agendamentos", alerta:true,
+    itens: () => comPrazo().map(s=>({c:cliente(s.cliente_id),iso:s.prazo,n:diasAte(s.prazo),sub:`${TIPOS[s.tipo]||s.tipo}${s.prazo_obs?" · "+s.prazo_obs:s.proximo_passo?" · "+s.proximo_passo.split("\n")[0]:""}`})),
+    resumo: n => `${n} prazo${n===1?"":"s"} em ordem cronológica · ${alertas().length} vencem em até 7 dias`, dt: x => `${fmtDate(x.iso)} (${x.n<0?"venceu":x.n===0?"hoje":"em "+x.n+" d"})` },
+  { id:"semprazo", nome:"Em andamento sem prazo definido",
+    itens: () => S.servicos.filter(s=>s.status==="andamento"&&!s.prazo&&s.tipo!=="parcelamento").map(s=>({c:cliente(s.cliente_id),sub:TIPOS[s.tipo]||s.tipo})),
+    resumo: n => `${n} serviço${n===1?"":"s"} aberto${n===1?"":"s"} sem data de prazo/agendamento` },
   { id:"semprox", nome:"Em andamento sem próximo passo",
     itens: () => S.servicos.filter(s=>s.status==="andamento"&&!s.proximo_passo&&s.tipo!=="parcelamento").map(s=>({c:cliente(s.cliente_id),sub:TIPOS[s.tipo]||s.tipo})),
     resumo: n => `${n} serviço${n===1?"":"s"} em andamento sem próximo passo anotado` },
@@ -551,7 +576,7 @@ const RELATORIOS = [
 ];
 const SECOES = [
   ["Cadastro incompleto", ["semtel","semgov","semcpf","semcnpj","sembrowser","semendereco","semservico"]],
-  ["Andamento", ["cnhparada","parados","semprox","semetapa","quasefim","datas","multiplos","concluidos"]],
+  ["Andamento", ["datas","semprazo","cnhparada","parados","semprox","semetapa","quasefim","multiplos","concluidos"]],
   ["Dinheiro", ["devendo","pagonaoconcl","parcelas","faturamento","desistiu"]],
   ["Visão geral", ["categoria","novos30","mes","cidade","uf"]],
 ];
